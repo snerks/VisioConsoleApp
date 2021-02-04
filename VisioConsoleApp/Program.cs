@@ -6,6 +6,7 @@ using System.Xml;
 using System.Xml.Linq;
 using System.Text;
 using System.Collections.Generic;
+using System.IO.Compression;
 
 namespace VisioConsoleApp
 {
@@ -134,22 +135,22 @@ namespace VisioConsoleApp
                             new XProcessingInstruction("NewValue", "V")));
 
                         // Save the XML back to the Page Contents part.
-                        // SaveXDocumentToPart(pagePart, pageXML);
+                        SaveXDocumentToPart(pagePart, pageXML);
 
-                        //// Change the shape's horizontal position on the page 
-                        //// by getting a reference to the Cell element for the PinY 
-                        //// ShapeSheet cell and changing the value of its V attribute.
-                        //XElement pinYCellXML = GetXElementByAttribute(
-                        //    startEndShapeElement.Elements(), "N", "PinY");
+                        // Change the shape's horizontal position on the page 
+                        // by getting a reference to the Cell element for the PinY 
+                        // ShapeSheet cell and changing the value of its V attribute.
+                        XElement pinYCellXML = GetXElementByAttribute(
+                            startEndShapeElement.Elements(), "N", "PinY");
 
-                        //pinYCellXML.SetAttributeValue("V", "2");
+                        pinYCellXML.SetAttributeValue("V", "2");
 
-                        // Add instructions to Visio to recalculate the entire document
-                        // when it is next opened.
-                        //RecalcDocument(visioPackage);
-                        
-                        // Save the XML back to the Page Contents part.
-                        // SaveXDocumentToPart(pagePart, pageXML);
+                        //Add instructions to Visio to recalculate the entire document
+                        //when it is next opened.
+                        RecalcDocument(visioPackage);
+
+                        //Save the XML back to the Page Contents part.
+                        SaveXDocumentToPart(pagePart, pageXML);
                     }
                 }
             }
@@ -187,14 +188,16 @@ namespace VisioConsoleApp
             {
                 FileInfo fileInfo = fileInfos[0];
                 string filePathName = fileInfo.FullName;
+
                 // Open the Visio file as a package with
                 // read/write file access.
                 visioPackage = Package.Open(
                     filePathName,
                     FileMode.Open,
-                    FileAccess.ReadWrite);
+                    //FileAccess.ReadWrite);
+                    FileAccess.Read);
             }
-            
+
             // Return the Visio file as a package.
             return visioPackage;
         }
@@ -319,18 +322,47 @@ namespace VisioConsoleApp
             XmlWriterSettings partWriterSettings = new XmlWriterSettings();
             partWriterSettings.Encoding = Encoding.UTF8;
 
-            // Create a new XmlWriter and then write the XML
-            // back to the document part.
-            XmlWriter partWriter = 
-                XmlWriter.Create(
-                    packagePart.GetStream(),
-                    partWriterSettings);
+            try
+            {
+                //using (Stream file = File.OpenRead(filename))
+                //using (Stream gzip = new GZipStream(file, CompressionMode.Decompress))
+                using (Stream memoryStream = new MemoryStream())
+                {
+                    var packageStream = packagePart.GetStream();
+                    CopyStream(packageStream, memoryStream);
+                    //return memoryStream.ToArray();
 
-            partXML.WriteTo(partWriter);
+                    // Create a new XmlWriter and then write the XML
+                    // back to the document part.
+                    XmlWriter partWriter = 
+                        XmlWriter.Create(
+                            //packagePart.GetStream(),
+                            memoryStream,
+                            partWriterSettings);
 
-            // Flush and close the XmlWriter.
-            partWriter.Flush();
-            partWriter.Close();
+                    partXML.WriteTo(partWriter);
+
+                    // Flush and close the XmlWriter.
+                    partWriter.Flush();
+                    partWriter.Close();
+
+                    CopyStream(memoryStream, packageStream);
+                }
+            }
+            catch (Exception ex)
+            {
+                throw;
+            }
+        }
+
+        static void CopyStream(Stream input, Stream output)
+        {
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = input.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                output.Write(buffer, 0, bytesRead);
+            }
         }
 
         private static void RecalcDocument(Package filePackage)

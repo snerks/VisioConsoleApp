@@ -101,8 +101,15 @@ namespace VisioConsoleApp
                         //XElement startEndShapeXML =
                         //    GetXElementByAttribute(shapesXML, "NameU", "Start/End");
 
-                        XElement startEndShapeElement =
-                            shapeElements.FirstOrDefault();
+                        // XName mainNamespace = "http://schemas.microsoft.com/office/visio/2012/main";
+                        XNamespace mainNamespace = "http://schemas.microsoft.com/office/visio/2012/main";
+
+                        XElement firstTextElement =
+                            shapeElements
+                                .Descendants(mainNamespace + "Text")
+                                .FirstOrDefault();
+
+                        XElement startEndShapeElement = firstTextElement.Parent;
 
                         // Query the XML for the shape to get the Text element, and
                         // return the first Text element node.
@@ -116,7 +123,7 @@ namespace VisioConsoleApp
                         textElement.LastNode.ReplaceWith("Start process");
 
                         // Save the XML back to the Page Contents part.
-                        SaveXDocumentToPart(pagePart, pageXML);
+                        // SaveXDocumentToPart(pagePart, pageXML);
 
                         // Insert a new Cell element in the Start/End shape that adds an arbitrary
                         // local ThemeIndex value. This code assumes that the shape does not 
@@ -127,7 +134,7 @@ namespace VisioConsoleApp
                             new XProcessingInstruction("NewValue", "V")));
 
                         // Save the XML back to the Page Contents part.
-                        SaveXDocumentToPart(pagePart, pageXML);
+                        // SaveXDocumentToPart(pagePart, pageXML);
 
                         //// Change the shape's horizontal position on the page 
                         //// by getting a reference to the Cell element for the PinY 
@@ -139,10 +146,10 @@ namespace VisioConsoleApp
 
                         // Add instructions to Visio to recalculate the entire document
                         // when it is next opened.
-                        RecalcDocument(visioPackage);
+                        //RecalcDocument(visioPackage);
                         
                         // Save the XML back to the Page Contents part.
-                        SaveXDocumentToPart(pagePart, pageXML);
+                        // SaveXDocumentToPart(pagePart, pageXML);
                     }
                 }
             }
@@ -311,11 +318,16 @@ namespace VisioConsoleApp
             // define the characteristics for the XmlWriter
             XmlWriterSettings partWriterSettings = new XmlWriterSettings();
             partWriterSettings.Encoding = Encoding.UTF8;
+
             // Create a new XmlWriter and then write the XML
             // back to the document part.
-            XmlWriter partWriter = XmlWriter.Create(packagePart.GetStream(),
-                partWriterSettings);
+            XmlWriter partWriter = 
+                XmlWriter.Create(
+                    packagePart.GetStream(),
+                    partWriterSettings);
+
             partXML.WriteTo(partWriter);
+
             // Flush and close the XmlWriter.
             partWriter.Flush();
             partWriter.Close();

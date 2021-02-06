@@ -10,15 +10,15 @@ using System.IO.Compression;
 
 namespace VisioConsoleApp
 {
-    class Program
+    internal static class Program
     {
-        static void Main(string[] args)
+        private static void Main()
         {
             var currentDirectory = Environment.CurrentDirectory;
 
-            var fileName = "tf66758849.vsdx";
+            const string fileName = "tf66758849.vsdx";
 
-            var fileFullPath = System.IO.Path.Combine(currentDirectory, fileName);
+            var fileFullPath = Path.Combine(currentDirectory, fileName);
 
             try
             {
@@ -63,95 +63,94 @@ namespace VisioConsoleApp
                     //}
 
                     // Open the Visio file in a Package object.
-                    using (Package visioPackage = OpenPackage(
+                    using Package visioPackage = OpenPackage(
                         fName,
-                        dirPath))
-                    {
-                        // Write the URI and content type of each package part to the console.
-                        IteratePackageParts(visioPackage);
+                        dirPath);
 
-                        // Get a reference to the Visio Document part contained in the file package.
-                        PackagePart documentPart = GetPackagePart(
-                            visioPackage,
-                            "http://schemas.microsoft.com/visio/2010/relationships/document");
+                    // Write the URI and content type of each package part to the console.
+                    IteratePackageParts(visioPackage);
 
-                        // Get a reference to the collection of pages in the document, 
-                        // and then to the first page in the document.
-                        PackagePart pagesPart = GetPackagePart(
-                            visioPackage, 
-                            documentPart,
-                            "http://schemas.microsoft.com/visio/2010/relationships/pages");
+                    // Get a reference to the Visio Document part contained in the file package.
+                    PackagePart documentPart = GetPackagePart(
+                        visioPackage,
+                        "http://schemas.microsoft.com/visio/2010/relationships/document");
 
-                        PackagePart pagePart = GetPackagePart(
-                            visioPackage, 
-                            pagesPart,
-                            "http://schemas.microsoft.com/visio/2010/relationships/page");
+                    // Get a reference to the collection of pages in the document, 
+                    // and then to the first page in the document.
+                    PackagePart pagesPart = GetPackagePart(
+                        visioPackage,
+                        documentPart,
+                        "http://schemas.microsoft.com/visio/2010/relationships/pages");
 
-                        // Open the XML from the Page Contents part.
-                        XDocument pageXML = GetXMLFromPart(pagePart);
+                    PackagePart pagePart = GetPackagePart(
+                        visioPackage,
+                        pagesPart,
+                        "http://schemas.microsoft.com/visio/2010/relationships/page");
 
-                        // Get all of the shapes from the page by getting
-                        // all of the Shape elements from the pageXML document.
-                        IEnumerable<XElement> shapeElements = 
-                            GetXElementsByName(pageXML, "Shape")
-                            .ToList();
+                    // Open the XML from the Page Contents part.
+                    XDocument pageXML = GetXMLFromPart(pagePart);
 
-                        // Select a Shape element from the shapes on the page by 
-                        // its name. You can modify this code to select elements
-                        // by other attributes and their values.
-                        //XElement startEndShapeXML =
-                        //    GetXElementByAttribute(shapesXML, "NameU", "Start/End");
+                    // Get all of the shapes from the page by getting
+                    // all of the Shape elements from the pageXML document.
+                    IEnumerable<XElement> shapeElements =
+                        GetXElementsByName(pageXML, "Shape")
+                        .ToList();
 
-                        // XName mainNamespace = "http://schemas.microsoft.com/office/visio/2012/main";
-                        XNamespace mainNamespace = "http://schemas.microsoft.com/office/visio/2012/main";
+                    // Select a Shape element from the shapes on the page by 
+                    // its name. You can modify this code to select elements
+                    // by other attributes and their values.
+                    //XElement startEndShapeXML =
+                    //    GetXElementByAttribute(shapesXML, "NameU", "Start/End");
 
-                        XElement firstTextElement =
-                            shapeElements
-                                .Descendants(mainNamespace + "Text")
-                                .FirstOrDefault();
+                    // XName mainNamespace = "http://schemas.microsoft.com/office/visio/2012/main";
+                    XNamespace mainNamespace = "http://schemas.microsoft.com/office/visio/2012/main";
 
-                        XElement startEndShapeElement = firstTextElement.Parent;
+                    XElement firstTextElement =
+                        shapeElements
+                            .Descendants(mainNamespace + "Text")
+                            .FirstOrDefault();
 
-                        // Query the XML for the shape to get the Text element, and
-                        // return the first Text element node.
-                        IEnumerable<XElement> textElements = from element in startEndShapeElement.Elements()
-                                                             where element.Name.LocalName == "Text"
-                                                             select element;
+                    XElement startEndShapeElement = firstTextElement.Parent;
 
-                        XElement textElement = textElements.ElementAt(0);
+                    // Query the XML for the shape to get the Text element, and
+                    // return the first Text element node.
+                    IEnumerable<XElement> textElements = from element in startEndShapeElement.Elements()
+                                                         where element.Name.LocalName == "Text"
+                                                         select element;
 
-                        // Change the shape text, leaving the <cp> element alone.
-                        textElement.LastNode.ReplaceWith("Start process");
+                    XElement textElement = textElements.ElementAt(0);
 
-                        // Save the XML back to the Page Contents part.
-                        // SaveXDocumentToPart(pagePart, pageXML);
+                    // Change the shape text, leaving the <cp> element alone.
+                    textElement.LastNode.ReplaceWith("Start process");
 
-                        // Insert a new Cell element in the Start/End shape that adds an arbitrary
-                        // local ThemeIndex value. This code assumes that the shape does not 
-                        // already have a local ThemeIndex cell.
-                        startEndShapeElement.Add(new XElement("Cell",
-                            new XAttribute("N", "ThemeIndex"),
-                            new XAttribute("V", "25"),
-                            new XProcessingInstruction("NewValue", "V")));
+                    // Save the XML back to the Page Contents part.
+                    // SaveXDocumentToPart(pagePart, pageXML);
 
-                        // Save the XML back to the Page Contents part.
-                        SaveXDocumentToPart(pagePart, pageXML);
+                    // Insert a new Cell element in the Start/End shape that adds an arbitrary
+                    // local ThemeIndex value. This code assumes that the shape does not 
+                    // already have a local ThemeIndex cell.
+                    startEndShapeElement.Add(new XElement("Cell",
+                        new XAttribute("N", "ThemeIndex"),
+                        new XAttribute("V", "25"),
+                        new XProcessingInstruction("NewValue", "V")));
 
-                        // Change the shape's horizontal position on the page 
-                        // by getting a reference to the Cell element for the PinY 
-                        // ShapeSheet cell and changing the value of its V attribute.
-                        XElement pinYCellXML = GetXElementByAttribute(
-                            startEndShapeElement.Elements(), "N", "PinY");
+                    // Save the XML back to the Page Contents part.
+                    SaveXDocumentToPart(pagePart, pageXML);
 
-                        pinYCellXML.SetAttributeValue("V", "2");
+                    // Change the shape's horizontal position on the page 
+                    // by getting a reference to the Cell element for the PinY 
+                    // ShapeSheet cell and changing the value of its V attribute.
+                    XElement pinYCellXML = GetXElementByAttribute(
+                        startEndShapeElement.Elements(), "N", "PinY");
 
-                        //Add instructions to Visio to recalculate the entire document
-                        //when it is next opened.
-                        RecalcDocument(visioPackage);
+                    pinYCellXML.SetAttributeValue("V", "2");
 
-                        //Save the XML back to the Page Contents part.
-                        SaveXDocumentToPart(pagePart, pageXML);
-                    }
+                    //Add instructions to Visio to recalculate the entire document
+                    //when it is next opened.
+                    RecalcDocument(visioPackage);
+
+                    //Save the XML back to the Page Contents part.
+                    SaveXDocumentToPart(pagePart, pageXML);
                 }
             }
             catch (Exception err)
@@ -183,8 +182,8 @@ namespace VisioConsoleApp
 
             // Get the Visio file from the location.
             FileInfo[] fileInfos = dirInfo.GetFiles(fileName);
-            
-            if (fileInfos.Count() > 0)
+
+            if (fileInfos.Length > 0)
             {
                 FileInfo fileInfo = fileInfos[0];
                 string filePathName = fileInfo.FullName;
@@ -211,7 +210,7 @@ namespace VisioConsoleApp
             foreach (PackagePart part in packageParts)
             {
                 Console.WriteLine("Package part URI: {0}", part.Uri);
-                Console.WriteLine("Content type: {0}", part.ContentType.ToString());
+                Console.WriteLine("Content type: {0}", part.ContentType);
             }
         }
 
@@ -234,7 +233,7 @@ namespace VisioConsoleApp
             {
                 // Clean up the URI using a helper class and then get the part.
                 Uri docUri = PackUriHelper.ResolvePartUri(
-                    new Uri("/", UriKind.Relative), 
+                    new Uri("/", UriKind.Relative),
                     packageRel.TargetUri);
 
                 part = filePackage.GetPart(docUri);
@@ -245,7 +244,7 @@ namespace VisioConsoleApp
 
         private static PackagePart GetPackagePart(
             Package filePackage,
-            PackagePart sourcePart, 
+            PackagePart sourcePart,
             string relationship)
         {
             // This gets only the first PackagePart that shares the relationship
@@ -262,7 +261,7 @@ namespace VisioConsoleApp
                 // that has the specified relationship to the PackagePart passed in
                 // as an argument.
                 Uri partUri = PackUriHelper.ResolvePartUri(
-                    sourcePart.Uri, 
+                    sourcePart.Uri,
                     packageRel.TargetUri);
 
                 relatedPart = filePackage.GetPart(partUri);
@@ -272,16 +271,15 @@ namespace VisioConsoleApp
 
         private static XDocument GetXMLFromPart(PackagePart packagePart)
         {
-            XDocument partXml = null;
             // Open the packagePart as a stream and then 
             // open the stream in an XDocument object.
             Stream partStream = packagePart.GetStream();
-            partXml = XDocument.Load(partStream);
+            XDocument partXml = XDocument.Load(partStream);
             return partXml;
         }
 
         private static IEnumerable<XElement> GetXElementsByName(
-            XDocument packagePart, 
+            XDocument packagePart,
             string elementType)
         {
             // Construct a LINQ query that selects elements by their element type.
@@ -296,7 +294,7 @@ namespace VisioConsoleApp
 
         private static XElement GetXElementByAttribute(
             IEnumerable<XElement> elements,
-            string attributeName, 
+            string attributeName,
             string attributeValue)
         {
             // Construct a LINQ query that selects elements from a group
@@ -316,38 +314,37 @@ namespace VisioConsoleApp
             PackagePart packagePart,
             XDocument partXML)
         {
-
             // Create a new XmlWriterSettings object to 
             // define the characteristics for the XmlWriter
-            XmlWriterSettings partWriterSettings = new XmlWriterSettings();
-            partWriterSettings.Encoding = Encoding.UTF8;
+            XmlWriterSettings partWriterSettings = new XmlWriterSettings
+            {
+                Encoding = Encoding.UTF8
+            };
 
             try
             {
                 //using (Stream file = File.OpenRead(filename))
                 //using (Stream gzip = new GZipStream(file, CompressionMode.Decompress))
-                using (Stream memoryStream = new MemoryStream())
-                {
-                    var packageStream = packagePart.GetStream();
-                    CopyStream(packageStream, memoryStream);
-                    //return memoryStream.ToArray();
+                using Stream memoryStream = new MemoryStream();
+                var packageStream = packagePart.GetStream();
+                CopyStream(packageStream, memoryStream);
+                //return memoryStream.ToArray();
 
-                    // Create a new XmlWriter and then write the XML
-                    // back to the document part.
-                    XmlWriter partWriter = 
-                        XmlWriter.Create(
-                            //packagePart.GetStream(),
-                            memoryStream,
-                            partWriterSettings);
+                // Create a new XmlWriter and then write the XML
+                // back to the document part.
+                XmlWriter partWriter =
+                    XmlWriter.Create(
+                        //packagePart.GetStream(),
+                        memoryStream,
+                        partWriterSettings);
 
-                    partXML.WriteTo(partWriter);
+                partXML.WriteTo(partWriter);
 
-                    // Flush and close the XmlWriter.
-                    partWriter.Flush();
-                    partWriter.Close();
+                // Flush and close the XmlWriter.
+                partWriter.Flush();
+                partWriter.Close();
 
-                    CopyStream(memoryStream, packageStream);
-                }
+                CopyStream(memoryStream, packageStream);
             }
             catch (Exception ex)
             {
@@ -355,7 +352,7 @@ namespace VisioConsoleApp
             }
         }
 
-        static void CopyStream(Stream input, Stream output)
+        private static void CopyStream(Stream input, Stream output)
         {
             byte[] buffer = new byte[8192];
             int bytesRead;

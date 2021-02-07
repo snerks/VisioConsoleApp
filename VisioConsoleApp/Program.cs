@@ -66,62 +66,78 @@ namespace VisioConsoleApp
 
                     // Open the Visio file in a Package object.
                     //using Package visioPackage = OpenPackage(fName,  dirPath);
-                    using Package visioPackage = Package.Open(packageFileFullPath, FileMode.OpenOrCreate, FileAccess.ReadWrite);
+                    using Package visioFilePackage = Package.Open(packageFileFullPath, FileMode.OpenOrCreate, FileAccess.ReadWrite);
 
                     // Write the URI and content type of each package part to the console.
-                    IteratePackageParts(visioPackage);
+                    IteratePackageParts(visioFilePackage);
+
+                    var customPropertiesPackagePartDocument = 
+                        GetCustomPropertiesPackagePartDocument(visioFilePackage);
+
+                    var willRecalcDocument = WillRecalcDocument(visioFilePackage);
 
                     // Get a reference to the Visio Document part contained in the file package.
-                    PackagePart documentPart = GetPackagePart(
-                        visioPackage,
+                    PackagePart documentPackagePart = GetPackagePart(
+                        visioFilePackage,
                         "http://schemas.microsoft.com/visio/2010/relationships/document");
 
                     // Get a reference to the collection of pages in the document, 
                     // and then to the first page in the document.
-                    PackagePart pagesPart = GetPackagePartFirstOrDefault(
-                        visioPackage,
-                        documentPart,
+                    PackagePart pagesPackagePart = GetPackagePartFirstOrDefault(
+                        visioFilePackage,
+                        documentPackagePart,
                         "http://schemas.microsoft.com/visio/2010/relationships/pages");
 
-                    PackagePart pagePart = GetPackagePartFirstOrDefault(
-                        visioPackage,
-                        pagesPart,
+                    PackagePart pagePackagePart = GetPackagePartFirstOrDefault(
+                        visioFilePackage,
+                        pagesPackagePart,
                         "http://schemas.microsoft.com/visio/2010/relationships/page");
 
-                    using (var packageStream = pagePart.GetStream())
+                    using (var pagePackagePartStream = pagePackagePart.GetStream())
                     {
                         //do stuff with stream - not necessary to reproduce bug
 
                         // Open the XML from the Page Contents part.
-                        XDocument pageXDocument = GetXDocumentFromPartStream(packageStream);
+                        XDocument pageXDocument = GetXDocumentFromPartStream(pagePackagePartStream);
 
                         // Get all of the shapes from the page by getting
                         // all of the Shape elements from the pageXML document.
                         IEnumerable<XElement> shapeElements =
-                            GetXElementsByName(pageXDocument, "Shape")
+                            GetXElementsByLocalName(pageXDocument, "Shape")
                             .ToList();
 
-                        // Select a Shape element from the shapes on the page by 
-                        // its name. You can modify this code to select elements
-                        // by other attributes and their values.
-                        //XElement startEndShapeXML =
-                        //    GetXElementByAttribute(shapesXML, "NameU", "Start/End");
+                        //var shapeWithNameUAttributeElements =
+                        //    shapeElements
+                        //    .Where(e => e.Attribute("NameU") != null)
+                        //    .ToList();
+
+                        //// Select a Shape element from the shapes on the page by 
+                        //// its name. You can modify this code to select elements
+                        //// by other attributes and their values.
+                        //XElement startEndShapeElement =
+                        //    GetXElementByAttribute(shapeElements, "NameU", "Start/End");
 
                         // XName mainNamespace = "http://schemas.microsoft.com/office/visio/2012/main";
                         XNamespace mainNamespace = "http://schemas.microsoft.com/office/visio/2012/main";
+                        XName textXName = mainNamespace + "Text";
 
+                        // Select the first Text Element
                         XElement firstTextElement =
                             shapeElements
-                                .Descendants(mainNamespace + "Text")
+                                .Descendants(textXName)
                                 .FirstOrDefault();
 
+                        // Get the Shape Parent Element
                         XElement startEndShapeElement = firstTextElement.Parent;
 
                         // Query the XML for the shape to get the Text element, and
                         // return the first Text element node.
-                        IEnumerable<XElement> textElements = from element in startEndShapeElement.Elements()
-                                                             where element.Name.LocalName == "Text"
-                                                             select element;
+                        IEnumerable<XElement> textElements =
+                        (
+                            from element in startEndShapeElement.Elements()
+                            where element.Name.LocalName == "Text"
+                            select element
+                        ).ToList();
 
                         XElement textElement = textElements.ElementAt(0);
 
@@ -130,9 +146,9 @@ namespace VisioConsoleApp
 
                         // Save the XML back to the Page Contents part.
                         //SaveXDocumentToPart(packageStream, pagePart, pageXDocument);
-                        SaveXDocumentToPart(pageXDocument, packageStream);
+                        SaveXDocumentToPackagePartStream(pageXDocument, pagePackagePartStream);
 
-                        pageXDocument = GetXDocumentFromPartStream(packageStream);
+                        pageXDocument = GetXDocumentFromPartStream(pagePackagePartStream);
 
                         // Insert a new Cell element in the Start/End shape that adds an arbitrary
                         // local ThemeIndex value. This code assumes that the shape does not 
@@ -144,7 +160,7 @@ namespace VisioConsoleApp
 
                         // Save the XML back to the Page Contents part.
                         //SaveXDocumentToPart(packageStream, pagePart, pageXDocument);
-                        SaveXDocumentToPart(pageXDocument, packageStream);
+                        SaveXDocumentToPackagePartStream(pageXDocument, pagePackagePartStream);
 
                         // Change the shape's horizontal position on the page 
                         // by getting a reference to the Cell element for the PinY 
@@ -156,11 +172,11 @@ namespace VisioConsoleApp
 
                         //Add instructions to Visio to recalculate the entire document
                         //when it is next opened.
-                        RecalcDocument(visioPackage, packageStream);
+                        EnsureRecalcDocument(visioFilePackage);
 
                         //Save the XML back to the Page Contents part.
                         //SaveXDocumentToPart(packageStream, pagePart, pageXDocument);
-                        SaveXDocumentToPart(pageXDocument, packageStream);
+                        SaveXDocumentToPackagePartStream(pageXDocument, pagePackagePartStream);
                     }
 
                     //using (var packageStream = pagePart.GetStream(FileMode.Open))
@@ -399,7 +415,7 @@ namespace VisioConsoleApp
             }
         }
 
-        private static IEnumerable<XElement> GetXElementsByName(
+        private static IEnumerable<XElement> GetXElementsByLocalName(
             XDocument packagePartDocument,
             string elementLocalName)
         {
@@ -546,56 +562,108 @@ namespace VisioConsoleApp
             }
         }
 
-        private static void RecalcDocument(
-            Package filePackage,
-            Stream packageStream)
+        private static bool WillRecalcDocument(Package filePackage)
+        {
+            var customPropertiesPackagePartDocument = 
+                GetCustomPropertiesPackagePartDocument(filePackage);
+
+            if (customPropertiesPackagePartDocument == null)
+            {
+                return false;
+            }
+
+            // Get all of the property elements from the document. 
+            var propertyElements =
+                GetXElementsByLocalName(customPropertiesPackagePartDocument, "property")
+                .ToList();
+
+            // Get the RecalcDocument property from the document if it exists already.
+            var recalcDocumentPropertyElement =
+                GetXElementByAttribute(
+                    propertyElements,
+                    "name",
+                    "RecalcDocument");
+
+            return recalcDocumentPropertyElement != null;
+        }
+
+        private static XDocument GetCustomPropertiesPackagePartDocument(
+            Package filePackage)
         {
             // Get the Custom File Properties part from the package and
             // and then extract the XML from it.
-            PackagePart customPart = GetPackagePart(filePackage,
+            PackagePart customPropertiesPackagePart = 
+                GetPackagePart(
+                    filePackage,
+                    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/" + "custom-properties");
+
+            using (var customPropertiesPackagePartStream = customPropertiesPackagePart.GetStream())
+            {
+                var customPropertiesPackagePartDocument = 
+                    GetXDocumentFromPartStream(customPropertiesPackagePartStream);
+
+                return customPropertiesPackagePartDocument;
+            }
+        }
+
+        private static void EnsureRecalcDocument(
+            Package filePackage)
+        {
+            // Get the Custom File Properties part from the package and
+            // and then extract the XML from it.
+            PackagePart customPropertiesPackagePart = GetPackagePart(filePackage,
                 "http://schemas.openxmlformats.org/officeDocument/2006/relationships/" +
                 "custom-properties");
 
-            //XDocument customPartXML = GetXMLFromPart(customPart);
-            XDocument customPartXML = GetXDocumentFromPartStream(packageStream);
-
-            // Check to see whether document recalculation has already been 
-            // set for this document. If it hasn't, use the integer
-            // value returned by CheckForRecalc as the property ID.
-            int pidValue = CheckForRecalc(customPartXML);
-            if (pidValue > -1)
+            using (var customPropertiesPackagePartStream = customPropertiesPackagePart.GetStream())
             {
-                XElement customPartRoot = customPartXML.Elements().ElementAt(0);
-                // Two XML namespaces are needed to add XML data to this 
-                // document. Here, we're using the GetNamespaceOfPrefix and 
-                // GetDefaultNamespace methods to get the namespaces that 
-                // we need. You can specify the exact strings for the 
-                // namespaces, but that is not recommended.
-                XNamespace customVTypesNS = customPartRoot.GetNamespaceOfPrefix("vt");
-                XNamespace customPropsSchemaNS = customPartRoot.GetDefaultNamespace();
+                //XDocument customPartXML = GetXMLFromPart(customPart);
+                var customPropertiesPackagePartDocument =
+                    GetXDocumentFromPartStream(customPropertiesPackagePartStream);
 
-                // Construct the XML for the new property in the XDocument.Add method.
-                // This ensures that the XNamespace objects will resolve properly, 
-                // apply the correct prefix, and will not default to an empty namespace.
+                // Check to see whether document recalculation has already been 
+                // set for this document. If it hasn't, use the integer
+                // value returned by CheckForRecalc as the property ID.
+                int pidValue = GetPropertyIdIntegerForRecalcDocument(customPropertiesPackagePartDocument);
 
-                if (customVTypesNS != null)
+                if (pidValue > -1)
                 {
-                    customPartRoot.Add(
-                        new XElement(customPropsSchemaNS + "property",
-                            new XAttribute("pid", pidValue.ToString()),
-                            new XAttribute("name", "RecalcDocument"),
-                            new XAttribute("fmtid",
-                                "{D5CDD505-2E9C-101B-9397-08002B2CF9AE}"),
-                            new XElement(customVTypesNS + "bool", "true")
-                        ));
-                }
-            }
+                    XElement customPartRoot = 
+                        customPropertiesPackagePartDocument
+                            .Elements()
+                            .ElementAt(0);
 
-            // Save the Custom Properties package part back to the package.
-            SaveXDocumentToPart(customPartXML, packageStream);
+                    // Two XML namespaces are needed to add XML data to this 
+                    // document. Here, we're using the GetNamespaceOfPrefix and 
+                    // GetDefaultNamespace methods to get the namespaces that 
+                    // we need. You can specify the exact strings for the 
+                    // namespaces, but that is not recommended.
+                    XNamespace customVTypesNS = customPartRoot.GetNamespaceOfPrefix("vt");
+                    XNamespace customPropsSchemaNS = customPartRoot.GetDefaultNamespace();
+
+                    // Construct the XML for the new property in the XDocument.Add method.
+                    // This ensures that the XNamespace objects will resolve properly, 
+                    // apply the correct prefix, and will not default to an empty namespace.
+
+                    if (customVTypesNS != null)
+                    {
+                        customPartRoot.Add(
+                            new XElement(customPropsSchemaNS + "property",
+                                new XAttribute("pid", pidValue.ToString()),
+                                new XAttribute("name", "RecalcDocument"),
+                                new XAttribute("fmtid",
+                                    "{D5CDD505-2E9C-101B-9397-08002B2CF9AE}"),
+                                new XElement(customVTypesNS + "bool", "true")
+                            ));
+                    }
+                }
+
+                // Save the Custom Properties package part back to the package.
+                SaveXDocumentToPackagePartStream(customPropertiesPackagePartDocument, customPropertiesPackagePartStream);
+            }
         }
 
-        private static void SaveXDocumentToPart(
+        private static void SaveXDocumentToPackagePartStream(
                 // PackagePart packagePart,
                 XDocument packagePartXDocument,
                 Stream packagePartStream
@@ -624,56 +692,80 @@ namespace VisioConsoleApp
             partWriter.Close();
         }
 
-        private static int CheckForRecalc(XDocument customPropsXDoc)
+        private static int GetPropertyIdIntegerForRecalcDocument(XDocument customPropertiesDocument)
         {
             // Set the inital pidValue to -1, which is not an allowed value.
             // The calling code tests to see whether the pidValue is 
-            // greater than -1.
+            // greater than -1, meaning that the RecalcDocument property is already present.
             int pidValue = -1;
 
             // Get all of the property elements from the document. 
-            var propElements = 
-                GetXElementsByName(customPropsXDoc, "property")
+            var propertyElements = 
+                GetXElementsByLocalName(customPropertiesDocument, "property")
                 .ToList();
 
             // Get the RecalcDocument property from the document if it exists already.
-            XElement recalcProp = 
-                GetXElementByAttribute(propElements, "name", "RecalcDocument");
+            var recalcDocumentPropertyElement = 
+                GetXElementByAttribute(
+                    propertyElements, 
+                    "name", 
+                    "RecalcDocument");
 
             // If there is already a RecalcDocument instruction in the 
             // Custom File Properties part, then we don't need to add another one. 
-            // Otherwise, we need to create a unique pid value.
-            if (recalcProp != null)
+            // Otherwise, we need to return a unique pid value.
+            if (recalcDocumentPropertyElement != null)
             {
-                return pidValue;
+                // Client does not add RecalcDocument element
+                return -1;
             }
-            else
-            {
-                // Get all of the pid values of the property elements and then
-                // convert the IEnumerable object into an array.
-                IEnumerable<string> propIDs =
-                    from prop in propElements
-                    where prop != null
-                    where prop.Name != null
-                    where prop.Name.LocalName == "property"
-                    select prop.Attribute("pid")?.Value;
 
-                string[] propIDArray = propIDs.ToArray();
-                // Increment this id value until a unique value is found.
-                // This starts at 2, because 0 and 1 are not valid pid values.
-                int id = 2;
-                while (pidValue == -1)
-                {
-                    if (propIDArray.Contains(id.ToString()))
-                    {
-                        id++;
-                    }
-                    else
-                    {
-                        pidValue = id;
-                    }
-                }
-            }
+            // Get all of the pid values of the property elements and then
+            // convert the IEnumerable object into an array.
+            //var propertyIds =
+            //    from prop in propertyElements
+            //    where prop != null
+            //    where prop.Name != null
+            //    where prop.Name.LocalName == "property"
+            //    select prop.Attribute("pid")?.Value;
+
+            //string[] propertyIdArray = propertyIds.ToArray();
+
+            var propertyIdStrings =
+                propertyElements
+                .Where(i => i != null)
+                .Where(i => i.Name != null)
+                .Where(i => i.Name.LocalName == "property")
+                .Select(i => i.Attribute("pid")?.Value)
+                .Where(pid => !string.IsNullOrWhiteSpace(pid))
+                .ToList();
+
+            var propertyIdIntegers =
+                propertyIdStrings
+                .Select(s => int.TryParse(s, out int parsedResult) ? parsedResult : 0)
+                .OrderBy(i => i)
+                .ToList();
+
+            var maximumExistingId = propertyIdIntegers.Max();
+
+            // Increment this id value until a unique value is found.
+            // This starts at 2, because 0 and 1 are not valid pid values.
+            var minimumId = 2;
+
+            pidValue = Math.Max(minimumId, maximumExistingId + 1);
+
+            //while (pidValue == -1)
+            //{
+            //    if (propertyIdArray.Contains(id.ToString()))
+            //    {
+            //        id++;
+            //    }
+            //    else
+            //    {
+            //        pidValue = id;
+            //    }
+            //}
+
             return pidValue;
         }
     }

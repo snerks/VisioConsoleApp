@@ -17,7 +17,6 @@ namespace VisioConsoleApp
             var currentDirectory = Environment.CurrentDirectory;
 
             const string fileName = "tf66758849.vsdx";
-
             var fileFullPath = Path.Combine(currentDirectory, fileName);
 
             try
@@ -29,43 +28,46 @@ namespace VisioConsoleApp
                 //string dirPath = System.Environment.GetFolderPath(
                 //    System.Environment.SpecialFolder.Desktop);
 
-                string dirPath = currentDirectory;
+                //string dirPath = currentDirectory;
 
-                DirectoryInfo myDir = new DirectoryInfo(dirPath);
+                DirectoryInfo currentDirectoryInfo = new DirectoryInfo(currentDirectory);
 
                 // It is a best practice to get the file name string
                 // using a FileInfo object, but it isn't necessary.
-                FileInfo[] fInfos = myDir.GetFiles("*.vsdx");
+                FileInfo[] visioFileInfos = currentDirectoryInfo.GetFiles("*.vsdx");
 
-                if (!fInfos.Any())
+                if (!visioFileInfos.Any())
                 {
-                    Console.WriteLine($"No *.vsdx files in folder: [{myDir.FullName}]");
+                    Console.WriteLine($"No *.vsdx files in folder: [{currentDirectoryInfo.FullName}]");
                 }
                 else
                 {
-                    FileInfo fi = fInfos[0];
-                    string fName = fi.Name;
+                    //FileInfo firstVisioFileInfo = visioFileInfos[0];
+                    //string firstVisioFileName = firstVisioFileInfo.Name;
 
-                    //// We're not going to do any more than open
-                    //// and read the list of parts in the package, although
-                    //// we can create a package or read/write what's inside.
-                    //using (Package fPackage = Package.Open(fName, FileMode.Open, FileAccess.Read))
-                    //{
+                    ////// We're not going to do any more than open
+                    ////// and read the list of parts in the package, although
+                    ////// we can create a package or read/write what's inside.
+                    ////using (Package fPackage = Package.Open(fName, FileMode.Open, FileAccess.Read))
+                    ////{
 
-                    //    // The way to get a reference to a package part is
-                    //    // by using its URI. Thus, we're reading the URI
-                    //    // for each part in the package.
-                    //    PackagePartCollection fParts = fPackage.GetParts();
-                    //    foreach (PackagePart fPart in fParts)
-                    //    {
-                    //        Console.WriteLine("Package part: {0}", fPart.Uri);
-                    //    }
-                    //}
+                    ////    // The way to get a reference to a package part is
+                    ////    // by using its URI. Thus, we're reading the URI
+                    ////    // for each part in the package.
+                    ////    PackagePartCollection fParts = fPackage.GetParts();
+                    ////    foreach (PackagePart fPart in fParts)
+                    ////    {
+                    ////        Console.WriteLine("Package part: {0}", fPart.Uri);
+                    ////    }
+                    ////}
 
-                    var packageFileFullPath = GetPackagePath(fName, dirPath);
+                    //var packageFileFullPath = GetPackagePath(firstVisioFileName, currentDirectory);
 
                     // Open the Visio file in a Package object.
                     //using Package visioPackage = OpenPackage(fName,  dirPath);
+
+                    var packageFileFullPath = fileFullPath;
+
                     using Package visioFilePackage = Package.Open(packageFileFullPath, FileMode.OpenOrCreate, FileAccess.ReadWrite);
 
                     // Write the URI and content type of each package part to the console.
@@ -95,8 +97,6 @@ namespace VisioConsoleApp
 
                     using (var pagePackagePartStream = pagePackagePart.GetStream())
                     {
-                        //do stuff with stream - not necessary to reproduce bug
-
                         // Open the XML from the Page Contents part.
                         XDocument pageXDocument = GetXDocumentFromPartStream(pagePackagePartStream);
 
@@ -135,13 +135,12 @@ namespace VisioConsoleApp
                         // Query the XML for the shape to get the Text element, and
                         // return the first Text element node.
                         IEnumerable<XElement> textElements =
-                        (
-                            from element in startEndShapeElement.Elements()
-                            where element.Name.LocalName == "Text"
-                            select element
-                        ).ToList();
+                            startEndShapeElement
+                            .Elements()
+                            .Where(e => e.Name.LocalName == "Text")
+                            .ToList();
 
-                        XElement textElement = textElements.ElementAt(0);
+                        var textElement = textElements.ElementAt(0);
 
                         // Change the shape text, leaving the <cp> element alone.
                         textElement.LastNode.ReplaceWith("Start process");
@@ -168,10 +167,13 @@ namespace VisioConsoleApp
                         // Change the shape's horizontal position on the page 
                         // by getting a reference to the Cell element for the PinY 
                         // ShapeSheet cell and changing the value of its V attribute.
-                        XElement pinYCellXML = GetXElementByAttribute(
-                            startEndShapeElement.Elements(), "N", "PinY");
+                        var pinYCellElement = 
+                            GetXElementByAttribute(
+                                startEndShapeElement.Elements(), 
+                                "N", 
+                                "PinY");
 
-                        pinYCellXML.SetAttributeValue("V", "2");
+                        pinYCellElement.SetAttributeValue("V", "2");
 
                         //Save the XML back to the Page Contents part.
                         SaveXDocumentToPackagePartStream(pageXDocument, pagePackagePartStream);
@@ -311,43 +313,40 @@ namespace VisioConsoleApp
 
         private static PackagePart GetPackagePartFirstOrDefault(
             Package filePackage,
-            PackagePart sourcePart,
+            PackagePart sourcePackagePart,
             string relationship)
         {
             // This gets only the first PackagePart that shares the relationship
             // with the PackagePart passed in as an argument. You can modify the code
             // here to return a different PackageRelationship from the collection.
-            PackageRelationship packageRel =
-                sourcePart.GetRelationshipsByType(relationship).FirstOrDefault();
+            var packageRelationship =
+                sourcePackagePart
+                    .GetRelationshipsByType(relationship)
+                    .FirstOrDefault();
 
             PackagePart relatedPart = null;
 
-            if (packageRel != null)
+            if (packageRelationship != null)
             {
                 // Use the PackUriHelper class to determine the URI of PackagePart
                 // that has the specified relationship to the PackagePart passed in
                 // as an argument.
                 Uri partUri = PackUriHelper.ResolvePartUri(
-                    sourcePart.Uri,
-                    packageRel.TargetUri);
+                    sourcePackagePart.Uri,
+                    packageRelationship.TargetUri);
 
                 relatedPart = filePackage.GetPart(partUri);
             }
+
             return relatedPart;
         }
 
         private static XDocument GetXDocumentFromPartStream(
-            //PackagePart packagePart,
             Stream packagePartStream)
         {
-            // Open the packagePart as a stream and then 
-            // open the stream in an XDocument object.
-            //Stream partStream = packagePart.GetStream();
-
             packagePartStream.Position = 0;
 
             var buffer = new byte[packagePartStream.Length];
-
             packagePartStream.Read(buffer, 0, (int)packagePartStream.Length);
 
             string xml = System.Text.Encoding.UTF8.GetString(buffer);
@@ -387,11 +386,10 @@ namespace VisioConsoleApp
         {
             // Construct a LINQ query that selects elements by their element type.
             IEnumerable<XElement> elements =
-                (
-                    from element in packagePartDocument.Descendants()
-                    where element.Name.LocalName == elementLocalName
-                    select element
-                ).ToList();
+                packagePartDocument
+                .Descendants()
+                .Where(e => e.Name.LocalName == elementLocalName)
+                .ToList();
 
             // Return the selected elements to the calling code.
             return elements.DefaultIfEmpty(null);
@@ -518,15 +516,15 @@ namespace VisioConsoleApp
         //    }
         //}
 
-        private static void CopyStream(Stream input, Stream output)
-        {
-            byte[] buffer = new byte[8192];
-            int bytesRead;
-            while ((bytesRead = input.Read(buffer, 0, buffer.Length)) > 0)
-            {
-                output.Write(buffer, 0, bytesRead);
-            }
-        }
+        //private static void CopyStream(Stream input, Stream output)
+        //{
+        //    byte[] buffer = new byte[8192];
+        //    int bytesRead;
+        //    while ((bytesRead = input.Read(buffer, 0, buffer.Length)) > 0)
+        //    {
+        //        output.Write(buffer, 0, bytesRead);
+        //    }
+        //}
 
         private static bool WillRecalcDocument(Package filePackage)
         {
@@ -556,8 +554,6 @@ namespace VisioConsoleApp
         private static XDocument GetCustomPropertiesPackagePartDocument(
             Package filePackage)
         {
-            // Get the Custom File Properties part from the package and
-            // and then extract the XML from it.
             PackagePart customPropertiesPackagePart = 
                 GetPackagePart(
                     filePackage,
@@ -575,15 +571,12 @@ namespace VisioConsoleApp
         private static void EnsureRecalcDocument(
             Package filePackage)
         {
-            // Get the Custom File Properties part from the package and
-            // and then extract the XML from it.
             PackagePart customPropertiesPackagePart = GetPackagePart(filePackage,
                 "http://schemas.openxmlformats.org/officeDocument/2006/relationships/" +
                 "custom-properties");
 
             using (var customPropertiesPackagePartStream = customPropertiesPackagePart.GetStream())
             {
-                //XDocument customPartXML = GetXMLFromPart(customPart);
                 var customPropertiesPackagePartDocument =
                     GetXDocumentFromPartStream(customPropertiesPackagePartStream);
 
@@ -594,6 +587,8 @@ namespace VisioConsoleApp
 
                 if (pidValue > -1)
                 {
+                    // RecalcDocument is not present
+                    // Add it with the computed pid value
                     XElement customPartRoot = 
                         customPropertiesPackagePartDocument
                             .Elements()
@@ -610,7 +605,6 @@ namespace VisioConsoleApp
                     // Construct the XML for the new property in the XDocument.Add method.
                     // This ensures that the XNamespace objects will resolve properly, 
                     // apply the correct prefix, and will not default to an empty namespace.
-
                     if (customVTypesNS != null)
                     {
                         customPartRoot.Add(
@@ -625,7 +619,9 @@ namespace VisioConsoleApp
                 }
 
                 // Save the Custom Properties package part back to the package.
-                SaveXDocumentToPackagePartStream(customPropertiesPackagePartDocument, customPropertiesPackagePartStream);
+                SaveXDocumentToPackagePartStream(
+                    customPropertiesPackagePartDocument, 
+                    customPropertiesPackagePartStream);
             }
         }
 
@@ -662,7 +658,7 @@ namespace VisioConsoleApp
         {
             // Set the inital pidValue to -1, which is not an allowed value.
             // The calling code tests to see whether the pidValue is 
-            // greater than -1, meaning that the RecalcDocument property is already present.
+            // greater than -1, where -1 means that the RecalcDocument property is already present.
             int pidValue = -1;
 
             // Get all of the property elements from the document. 
@@ -670,7 +666,7 @@ namespace VisioConsoleApp
                 GetXElementsByLocalName(customPropertiesDocument, "property")
                 .ToList();
 
-            // Get the RecalcDocument property from the document if it exists already.
+            // Get the RecalcDocument property from the document, if it exists already.
             var recalcDocumentPropertyElement = 
                 GetXElementByAttribute(
                     propertyElements, 
@@ -682,7 +678,7 @@ namespace VisioConsoleApp
             // Otherwise, we need to return a unique pid value.
             if (recalcDocumentPropertyElement != null)
             {
-                // Client does not add RecalcDocument element
+                // Client should not add RecalcDocument element
                 return -1;
             }
 

@@ -119,6 +119,8 @@ namespace VisioConsoleApp
 
                         // XName mainNamespace = "http://schemas.microsoft.com/office/visio/2012/main";
                         XNamespace mainNamespace = "http://schemas.microsoft.com/office/visio/2012/main";
+
+                        // Edit Text Element
                         XName textXName = mainNamespace + "Text";
 
                         // Select the first Text Element
@@ -145,11 +147,12 @@ namespace VisioConsoleApp
                         textElement.LastNode.ReplaceWith("Start process");
 
                         // Save the XML back to the Page Contents part.
-                        //SaveXDocumentToPart(packageStream, pagePart, pageXDocument);
                         SaveXDocumentToPackagePartStream(pageXDocument, pagePackagePartStream);
 
+                        // Check update has occurred
                         pageXDocument = GetXDocumentFromPartStream(pagePackagePartStream);
 
+                        // Add New Cell to Shape
                         // Insert a new Cell element in the Start/End shape that adds an arbitrary
                         // local ThemeIndex value. This code assumes that the shape does not 
                         // already have a local ThemeIndex cell.
@@ -159,9 +162,9 @@ namespace VisioConsoleApp
                             new XProcessingInstruction("NewValue", "V")));
 
                         // Save the XML back to the Page Contents part.
-                        //SaveXDocumentToPart(packageStream, pagePart, pageXDocument);
                         SaveXDocumentToPackagePartStream(pageXDocument, pagePackagePartStream);
 
+                        // Edit Shape
                         // Change the shape's horizontal position on the page 
                         // by getting a reference to the Cell element for the PinY 
                         // ShapeSheet cell and changing the value of its V attribute.
@@ -170,50 +173,13 @@ namespace VisioConsoleApp
 
                         pinYCellXML.SetAttributeValue("V", "2");
 
+                        //Save the XML back to the Page Contents part.
+                        SaveXDocumentToPackagePartStream(pageXDocument, pagePackagePartStream);
+
                         //Add instructions to Visio to recalculate the entire document
                         //when it is next opened.
                         EnsureRecalcDocument(visioFilePackage);
-
-                        //Save the XML back to the Page Contents part.
-                        //SaveXDocumentToPart(packageStream, pagePart, pageXDocument);
-                        SaveXDocumentToPackagePartStream(pageXDocument, pagePackagePartStream);
                     }
-
-                    //using (var packageStream = pagePart.GetStream(FileMode.Open))
-                    //{
-                    //    //do stuff with stream - not necessary to reproduce bug
-                    //    // Save the XML back to the Page Contents part.
-                    //    SaveXDocumentToPart(packageStream, pagePart, pageXML);
-                    //}
-
-                    //// Save the XML back to the Page Contents part.
-                    //SaveXDocumentToPart(visioPackage, pagePart, pageXML);
-
-                    //// Insert a new Cell element in the Start/End shape that adds an arbitrary
-                    //// local ThemeIndex value. This code assumes that the shape does not 
-                    //// already have a local ThemeIndex cell.
-                    //startEndShapeElement.Add(new XElement("Cell",
-                    //    new XAttribute("N", "ThemeIndex"),
-                    //    new XAttribute("V", "25"),
-                    //    new XProcessingInstruction("NewValue", "V")));
-
-                    //// Save the XML back to the Page Contents part.
-                    ////SaveXDocumentToPart(visioPackage, pagePart, pageXML);
-
-                    //// Change the shape's horizontal position on the page 
-                    //// by getting a reference to the Cell element for the PinY 
-                    //// ShapeSheet cell and changing the value of its V attribute.
-                    //XElement pinYCellXML = GetXElementByAttribute(
-                    //    startEndShapeElement.Elements(), "N", "PinY");
-
-                    //pinYCellXML.SetAttributeValue("V", "2");
-
-                    ////Add instructions to Visio to recalculate the entire document
-                    ////when it is next opened.
-                    //RecalcDocument(visioPackage);
-
-                    ////Save the XML back to the Page Contents part.
-                    ////SaveXDocumentToPart(visioPackage, pagePart, pageXML);
                 }
             }
             catch (Exception err)

@@ -10,11 +10,14 @@ using System.IO.Compression;
 
 namespace VisioConsoleApp
 {
-    internal static class Program
+    internal class Program
     {
+        private static string BaseOutputFolder = "";
+
         private static void Main()
         {
             var currentDirectory = Environment.CurrentDirectory;
+            BaseOutputFolder = currentDirectory;
 
             const string fileName = "tf66758849.vsdx";
             var fileFullPath = Path.Combine(currentDirectory, fileName);
@@ -73,9 +76,11 @@ namespace VisioConsoleApp
                     // Write the URI and content type of each package part to the console.
                     IteratePackageParts(visioFilePackage);
 
-                    IteratePagesPackageDocuments(visioFilePackage);
+                    //IteratePagesPackageDocuments(visioFilePackage);
 
-                    IteratePagePackageDocuments(visioFilePackage);
+                    //IteratePagePackageDocuments(visioFilePackage);
+
+                    IteratePagePackageParts(visioFilePackage);
 
                     var customPropertiesPackagePartDocument = 
                         GetCustomPropertiesPackagePartDocument(visioFilePackage);
@@ -274,25 +279,45 @@ namespace VisioConsoleApp
 
         private static void IteratePackageParts(Package filePackage)
         {
+            var packageParts = GetPagePackageParts(filePackage);
+
+            foreach (PackagePart packagePart in packageParts)
+            {
+                Console.WriteLine("Package part URI: {0}", packagePart.Uri);
+                Console.WriteLine("Content type: {0}", packagePart.ContentType);
+            }
+        }
+
+        private static void IteratePagePackageParts(Package filePackage)
+        {
             // Get all of the package parts contained in the package
             // and then write the URI and content type of each one to the console.
-            PackagePartCollection packageParts = filePackage.GetParts();
+            //PackagePartCollection packageParts = filePackage.GetParts();
 
-            foreach (PackagePart part in packageParts)
+            var packageParts = GetPagePackageParts(filePackage);
+
+            foreach (PackagePart packagePart in packageParts)
             {
-                Console.WriteLine("Package part URI: {0}", part.Uri);
-                Console.WriteLine("Content type: {0}", part.ContentType);
-            }
+                //Console.WriteLine("Package part URI: {0}", part.Uri);
+                //Console.WriteLine("Content type: {0}", part.ContentType);
 
-            var relationships = filePackage.GetRelationships();
+                var fileName = packagePart.Uri.ToString().Split("/").Last();
 
-            Console.WriteLine("--------------------------------");
-            Console.WriteLine("Package Relationships");
-            Console.WriteLine("--------------------------------");
+                var packagePartDocument = GetXDocumentFromPackagePart(packagePart);
 
-            foreach (var relationship in relationships)
-            {
-                Console.WriteLine($"Relationship : SourceUri [{relationship.SourceUri}] : TargetUri [{relationship.TargetUri}]");
+                Console.WriteLine(packagePartDocument.ToString());
+
+                //var fileName =
+                //    packagePartDocument
+                //        .Root
+                //        .Elements().Where(e => e.Name.LocalName == "Page")
+                //        .FirstOrDefault()
+                //        ?.Attribute("Name")
+                //        ?.Value;
+
+                var outputFileFullPath = Path.Combine(BaseOutputFolder, fileName);
+
+                packagePartDocument.Save(outputFileFullPath);
             }
 
             Console.WriteLine("--------------------------------");
@@ -321,6 +346,18 @@ namespace VisioConsoleApp
             {
                 //Console.WriteLine("Package part URI: {0}", part.Uri);
                 Console.WriteLine(packagePartDocument.ToString());
+
+                var fileName = 
+                    packagePartDocument
+                        .Root
+                        .Elements().Where(e => e.Name.LocalName == "Page")
+                        .FirstOrDefault()
+                        ?.Attribute("Name")
+                        ?.Value;
+
+                var outputFileFullPath = Path.Combine(BaseOutputFolder, fileName);
+
+                packagePartDocument.Save(outputFileFullPath);
             }
         }
 
@@ -356,6 +393,28 @@ namespace VisioConsoleApp
                 .ToList();
 
             return results;
+        }
+
+        private static List<PackagePart> GetPagePackageParts(Package filePackage)
+        {
+            // Get a reference to the Visio Document part contained in the file package.
+            PackagePart documentPackagePart = GetPackagePart(
+                filePackage,
+                "http://schemas.microsoft.com/visio/2010/relationships/document");
+
+            // Get a reference to the collection of pages in the document, 
+            // and then to the first page in the document.
+            PackagePart pagesPackagePart = GetPackagePartFirstOrDefault(
+                filePackage,
+                documentPackagePart,
+                "http://schemas.microsoft.com/visio/2010/relationships/pages");
+
+            var pagePackageParts = GetRelatedPackageParts(
+                filePackage,
+                pagesPackagePart,
+                "http://schemas.microsoft.com/visio/2010/relationships/page");
+
+            return pagePackageParts;
         }
 
         private static List<XDocument> GetPagePackagePartDocuments(Package filePackage)

@@ -73,6 +73,10 @@ namespace VisioConsoleApp
                     // Write the URI and content type of each package part to the console.
                     IteratePackageParts(visioFilePackage);
 
+                    IteratePagesPackageDocuments(visioFilePackage);
+
+                    IteratePagePackageDocuments(visioFilePackage);
+
                     var customPropertiesPackagePartDocument = 
                         GetCustomPropertiesPackagePartDocument(visioFilePackage);
 
@@ -194,8 +198,6 @@ namespace VisioConsoleApp
                 Console.Write("\nPress any key to continue ...");
                 Console.ReadKey();
             }
-
-            //Console.ReadKey();
         }
 
         //private static Package OpenPackage(
@@ -232,43 +234,43 @@ namespace VisioConsoleApp
         //    return visioPackage;
         //}
 
-        private static string GetPackagePath(
-            string fileName,
-            string folderFullPath)
-            //Environment.SpecialFolder folder)
-        {
-            //Package visioPackage = null;
-            // Get a reference to the location 
-            // where the Visio file is stored.
-            //string directoryPath = System.Environment.GetFolderPath(folder);
-            string directoryPath = folderFullPath;
+        //private static string GetPackagePath(
+        //    string fileName,
+        //    string folderFullPath)
+        //    //Environment.SpecialFolder folder)
+        //{
+        //    //Package visioPackage = null;
+        //    // Get a reference to the location 
+        //    // where the Visio file is stored.
+        //    //string directoryPath = System.Environment.GetFolderPath(folder);
+        //    string directoryPath = folderFullPath;
 
-            DirectoryInfo dirInfo = new DirectoryInfo(directoryPath);
+        //    DirectoryInfo dirInfo = new DirectoryInfo(directoryPath);
 
-            string filePathName = null;
+        //    string filePathName = null;
 
-            // Get the Visio file from the location.
-            FileInfo[] fileInfos = dirInfo.GetFiles(fileName);
+        //    // Get the Visio file from the location.
+        //    FileInfo[] fileInfos = dirInfo.GetFiles(fileName);
 
-            if (fileInfos.Length > 0)
-            {
-                FileInfo fileInfo = fileInfos[0];
-                filePathName = fileInfo.FullName;
+        //    if (fileInfos.Length > 0)
+        //    {
+        //        FileInfo fileInfo = fileInfos[0];
+        //        filePathName = fileInfo.FullName;
 
-                // Open the Visio file as a package with
-                // read/write file access.
-                //visioPackage = Package.Open(
-                //    filePathName,
-                //    FileMode.Open,
-                //    FileAccess.ReadWrite);
-                //FileAccess.Read);
-            }
+        //        // Open the Visio file as a package with
+        //        // read/write file access.
+        //        //visioPackage = Package.Open(
+        //        //    filePathName,
+        //        //    FileMode.Open,
+        //        //    FileAccess.ReadWrite);
+        //        //FileAccess.Read);
+        //    }
 
-            // Return the Visio file as a package.
-            //return visioPackage;
+        //    // Return the Visio file as a package.
+        //    //return visioPackage;
 
-            return filePathName;
-        }
+        //    return filePathName;
+        //}
 
         private static void IteratePackageParts(Package filePackage)
         {
@@ -281,6 +283,145 @@ namespace VisioConsoleApp
                 Console.WriteLine("Package part URI: {0}", part.Uri);
                 Console.WriteLine("Content type: {0}", part.ContentType);
             }
+
+            var relationships = filePackage.GetRelationships();
+
+            Console.WriteLine("--------------------------------");
+            Console.WriteLine("Package Relationships");
+            Console.WriteLine("--------------------------------");
+
+            foreach (var relationship in relationships)
+            {
+                Console.WriteLine($"Relationship : SourceUri [{relationship.SourceUri}] : TargetUri [{relationship.TargetUri}]");
+            }
+
+            Console.WriteLine("--------------------------------");
+        }
+
+        private static void IteratePagesPackageDocuments(Package filePackage)
+        {
+            // Get all of the package parts contained in the package
+            // and then write the URI and content type of each one to the console.
+            var packagePartDocuments = GetPagesPackagePartDocuments(filePackage);
+
+            foreach (var packagePartDocument in packagePartDocuments)
+            {
+                //Console.WriteLine("Package part URI: {0}", part.Uri);
+                Console.WriteLine(packagePartDocument.ToString());
+            }
+        }
+
+        private static void IteratePagePackageDocuments(Package filePackage)
+        {
+            // Get all of the package parts contained in the package
+            // and then write the URI and content type of each one to the console.
+            var packagePartDocuments = GetPagePackagePartDocuments(filePackage);
+
+            foreach (var packagePartDocument in packagePartDocuments)
+            {
+                //Console.WriteLine("Package part URI: {0}", part.Uri);
+                Console.WriteLine(packagePartDocument.ToString());
+            }
+        }
+
+        private static List<XDocument> GetPagesPackagePartDocuments(Package filePackage)
+        {
+            // Get a reference to the Visio Document part contained in the file package.
+            PackagePart documentPackagePart = GetPackagePart(
+                filePackage,
+                "http://schemas.microsoft.com/visio/2010/relationships/document");
+
+            // Get a reference to the collection of pages in the document, 
+            // and then to the first page in the document.
+            var pagesPackageParts = GetRelatedPackageParts(
+                filePackage,
+                documentPackagePart,
+                "http://schemas.microsoft.com/visio/2010/relationships/pages");
+
+            //// Get all of the package parts contained in the package
+            //// and then write the URI and content type of each one to the console.
+            //PackagePartCollection packageParts = filePackage.GetParts();
+
+            ////const string visionPageContentType = "application/vnd.ms-visio.page+xml";
+
+            //foreach (PackagePart pagePackagePart in pagePackageParts)
+            //{
+            //    Console.WriteLine("Package part URI: {0}", pagePackagePart.Uri);
+            //    Console.WriteLine("Content type: {0}", pagePackagePart.ContentType);
+            //}
+
+            var results =
+                pagesPackageParts
+                .Select(pp => GetXDocumentFromPackagePart(pp))
+                .ToList();
+
+            return results;
+        }
+
+        private static List<XDocument> GetPagePackagePartDocuments(Package filePackage)
+        {
+            // Get a reference to the Visio Document part contained in the file package.
+            PackagePart documentPackagePart = GetPackagePart(
+                filePackage,
+                "http://schemas.microsoft.com/visio/2010/relationships/document");
+
+            // Get a reference to the collection of pages in the document, 
+            // and then to the first page in the document.
+            PackagePart pagesPackagePart = GetPackagePartFirstOrDefault(
+                filePackage,
+                documentPackagePart,
+                "http://schemas.microsoft.com/visio/2010/relationships/pages");
+
+            var pagePackageParts = GetRelatedPackageParts(
+                filePackage,
+                pagesPackagePart,
+                "http://schemas.microsoft.com/visio/2010/relationships/page");
+
+            // Get all of the package parts contained in the package
+            // and then write the URI and content type of each one to the console.
+            PackagePartCollection packageParts = filePackage.GetParts();
+
+            //const string visionPageContentType = "application/vnd.ms-visio.page+xml";
+
+            foreach (PackagePart pagePackagePart in pagePackageParts)
+            {
+                Console.WriteLine("Package part URI: {0}", pagePackagePart.Uri);
+                Console.WriteLine("Content type: {0}", pagePackagePart.ContentType);
+            }
+
+            var results =
+                pagePackageParts
+                .Select(pp => GetXDocumentFromPackagePart(pp))
+                .ToList();
+
+            return results;
+        }
+
+        private static List<XDocument> GetContentTypePackageParts(
+            Package filePackage,
+            string contentType)
+        {
+            // Get all of the package parts contained in the package
+            // and then write the URI and content type of each one to the console.
+            PackagePartCollection packageParts = filePackage.GetParts();
+
+            var relevantPackageParts =
+                packageParts
+                .Where(pp => pp.ContentType == contentType)
+                .ToList();
+
+            foreach (PackagePart packagePart in relevantPackageParts)
+            {
+                Console.WriteLine("Package part URI: {0}", packagePart.Uri);
+                Console.WriteLine("Content type: {0}", packagePart.ContentType);
+            }
+
+            var results =
+                relevantPackageParts
+                .Select(pp => GetXDocumentFromPackagePart(pp))
+                .ToList();
+
+            return results;
         }
 
         private static PackagePart GetPackagePart(
@@ -311,6 +452,38 @@ namespace VisioConsoleApp
             return part;
         }
 
+        private static List<PackagePart> GetRelatedPackageParts(
+            Package filePackage,
+            PackagePart sourcePackagePart,
+            string relationship)
+        {
+            // This gets only the first PackagePart that shares the relationship
+            // with the PackagePart passed in as an argument. You can modify the code
+            // here to return a different PackageRelationship from the collection.
+            var packageRelationships =
+                sourcePackagePart
+                    .GetRelationshipsByType(relationship)
+                    .ToList();
+
+            var results =
+                packageRelationships
+                .Select(pr => {
+                    // Use the PackUriHelper class to determine the URI of PackagePart
+                    // that has the specified relationship to the PackagePart passed in
+                    // as an argument.
+                    Uri partUri = PackUriHelper.ResolvePartUri(
+                        sourcePackagePart.Uri,
+                        pr.TargetUri);
+
+                    var relatedPackagePart = filePackage.GetPart(partUri);
+
+                    return relatedPackagePart;
+                })
+                .ToList();
+
+            return results;
+        }
+
         private static PackagePart GetPackagePartFirstOrDefault(
             Package filePackage,
             PackagePart sourcePackagePart,
@@ -339,6 +512,16 @@ namespace VisioConsoleApp
             }
 
             return relatedPart;
+        }
+
+        private static XDocument GetXDocumentFromPackagePart(PackagePart packagePart)
+        {
+            using (var packagePartStream = packagePart.GetStream())
+            {
+                XDocument result = GetXDocumentFromPartStream(packagePartStream);
+
+                return result;
+            }
         }
 
         private static XDocument GetXDocumentFromPartStream(
